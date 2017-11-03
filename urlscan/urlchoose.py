@@ -21,6 +21,7 @@ URLs."""
 import urwid
 import urwid.curses_display
 import urwid.raw_display
+import subprocess
 import webbrowser
 from threading import Thread
 from time import sleep
@@ -34,6 +35,10 @@ def mkbrowseto(url):
         webbrowser.open(url)
     return browse
 
+def copyclip(url):
+    p = subprocess.Popen(["xclip", "-selection", "primary"],
+                     stdin=subprocess.PIPE)
+    p.communicate(url.encode('utf-8'))
 
 def shorten_url(url, cols, shorten):
     """Shorten long URLs to fit on one line.
@@ -136,13 +141,14 @@ class URLChooser:
         if self.compact is True:
             self.items, self.items_com = self.items_com, self.items
         self.contents = urwid.SimpleFocusListWalker(self.items)
-        listbox = urwid.ListBox(self.contents)
+        listbox = self.listbox = urwid.ListBox(self.contents)
         if len(self.urls) == 1:
             header = 'Found 1 url.'
         else:
             header = 'Found %d urls.' % len(self.urls)
         header = "{} :: {}".format(header, "q - Quit :: "
                                    "c - context :: "
+                                   "y - yank :: "
                                    "s - URL short :: "
                                    "S - all URL short :: ")
         headerwid = urwid.AttrMap(urwid.Text(header), 'header')
@@ -207,6 +213,12 @@ class URLChooser:
                 self.top.keypress(size, "down")
             elif k == 'k':
                 self.top.keypress(size, "up")
+            elif k == 'y':
+                fp = self.top.body.focus_position
+                url_idx = len([i for i in self.items[:fp + 1]
+                               if isinstance(i, urwid.Columns)]) - 1
+                url = self.urls[url_idx]
+                copyclip(url)
             elif k == 's':
                 # Toggle shortened URL for selected item
                 fp = self.top.body.focus_position
