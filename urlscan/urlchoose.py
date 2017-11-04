@@ -35,14 +35,12 @@ def mkbrowseto(url):
         webbrowser.open(url)
     return browse
 
-def mkcopyclip(url):
-    def copy(*args):
-        subprocess.run("echo '%s' | xclip -selection primary" % url,
-                       stdin=subprocess.DEVNULL,
-                       stdout=subprocess.DEVNULL,
-                       stderr=subprocess.DEVNULL,
-                       shell=True)
-    return copy
+def copyclip(url):
+    subprocess.run("echo '%s' | xclip -selection primary" % url,
+                   stdin=subprocess.DEVNULL,
+                   stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL,
+                   shell=True)
 
 def shorten_url(url, cols, shorten):
     """Shorten long URLs to fit on one line.
@@ -125,11 +123,7 @@ def process_urls(extractedurls, dedupe, shorten):
                                                              shorten),
                                                  mkbrowseto(url),
                                                  user_data=url),
-                                    'urlref:url', 'url:sel'),
-                      (8, urwid.AttrMap(urwid.Button("yank",
-                                                     mkcopyclip(url),
-                                                     user_data=url),
-                                    "urlref:url", "url:sel"))]
+                                    'urlref:url', 'url:sel')]
             items.append(urwid.Columns(markup))
 
     return items, urls
@@ -156,6 +150,7 @@ class URLChooser:
             header = 'Found %d urls.' % len(self.urls)
         header = "{} :: {}".format(header, "q - Quit :: "
                                    "c - context :: "
+                                   "y - yank :: "
                                    "s - URL short :: "
                                    "S - all URL short :: ")
         headerwid = urwid.AttrMap(urwid.Text(header), 'header')
@@ -220,6 +215,20 @@ class URLChooser:
                 self.top.keypress(size, "down")
             elif k == 'k':
                 self.top.keypress(size, "up")
+            elif k == 'y':
+
+                footerwid = urwid.AttrMap(urwid.Text("Yanking URL..."),
+                                          'footer')
+                self.top.footer = footerwid
+                load_thread = Thread(target=self._loading_thread)
+                load_thread.daemon = True
+                load_thread.start()
+
+                fp = self.top.body.focus_position
+                url_idx = len([i for i in self.items[:fp + 1]
+                               if isinstance(i, urwid.Columns)]) - 1
+                url = self.urls[url_idx]
+                copyclip(url)
             elif k == 's':
                 # Toggle shortened URL for selected item
                 fp = self.top.body.focus_position
