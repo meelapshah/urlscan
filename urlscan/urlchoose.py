@@ -35,10 +35,14 @@ def mkbrowseto(url):
         webbrowser.open(url)
     return browse
 
-def copyclip(url):
-    p = subprocess.Popen(["xclip", "-selection", "primary"],
-                     stdin=subprocess.PIPE)
-    p.communicate(url.encode('utf-8'))
+def mkcopyclip(url):
+    def copy(*args):
+        subprocess.run("echo '%s' | xclip -selection primary" % url,
+                       stdin=subprocess.DEVNULL,
+                       stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL,
+                       shell=True)
+    return copy
 
 def shorten_url(url, cols, shorten):
     """Shorten long URLs to fit on one line.
@@ -121,7 +125,11 @@ def process_urls(extractedurls, dedupe, shorten):
                                                              shorten),
                                                  mkbrowseto(url),
                                                  user_data=url),
-                                    'urlref:url', 'url:sel')]
+                                    'urlref:url', 'url:sel'),
+                      (8, urwid.AttrMap(urwid.Button("yank",
+                                                     mkcopyclip(url),
+                                                     user_data=url),
+                                    "urlref:url", "url:sel"))]
             items.append(urwid.Columns(markup))
 
     return items, urls
@@ -141,14 +149,13 @@ class URLChooser:
         if self.compact is True:
             self.items, self.items_com = self.items_com, self.items
         self.contents = urwid.SimpleFocusListWalker(self.items)
-        listbox = self.listbox = urwid.ListBox(self.contents)
+        listbox = urwid.ListBox(self.contents)
         if len(self.urls) == 1:
             header = 'Found 1 url.'
         else:
             header = 'Found %d urls.' % len(self.urls)
         header = "{} :: {}".format(header, "q - Quit :: "
                                    "c - context :: "
-                                   "y - yank :: "
                                    "s - URL short :: "
                                    "S - all URL short :: ")
         headerwid = urwid.AttrMap(urwid.Text(header), 'header')
@@ -213,12 +220,6 @@ class URLChooser:
                 self.top.keypress(size, "down")
             elif k == 'k':
                 self.top.keypress(size, "up")
-            elif k == 'y':
-                fp = self.top.body.focus_position
-                url_idx = len([i for i in self.items[:fp + 1]
-                               if isinstance(i, urwid.Columns)]) - 1
-                url = self.urls[url_idx]
-                copyclip(url)
             elif k == 's':
                 # Toggle shortened URL for selected item
                 fp = self.top.body.focus_position
@@ -254,7 +255,7 @@ class URLChooser:
         clearing the screen and clearing the footer loading message.
 
         """
-        sleep(5)
+        sleep(3)
         footerwid = urwid.AttrMap(urwid.Text(""), "default")
         self.top.footer = footerwid
         size = self.ui.get_cols_rows()
